@@ -10,7 +10,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from database import connect_to_postgres
+from database import session_factory
 from create_bot import (
     bot,
     dp,
@@ -35,9 +35,6 @@ async def on_startup(bot: Bot) -> None:
 
 def main() -> None:
     dp.include_router(router)
-    # Register startup hook to initialize webhook
-    # dp.startup.register(on_startup)
-
     app = web.Application()
 
     webhook_requests_handler = SimpleRequestHandler(
@@ -47,7 +44,7 @@ def main() -> None:
     webhook_requests_handler.register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
 
-    app.router.add_post(f'/{TINKOFF_PAYMENT_URI}', handle_payment_webhook)
+    # app.router.add_post(f'/{TINKOFF_PAYMENT_URI}', handle_payment_webhook)
 
     log_message('info', 'бот запущен', 0, traceback.extract_stack()[-1])
     web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
