@@ -23,7 +23,8 @@ from datetime import datetime
 import time
 
 
-# async def handle_payment_webhook(request: web.Request) -> web.Response:
+async def handle_payment_webhook(request: web.Request) -> web.Response:
+    ...
 #     payment_data = await request.json()
 #     admins = db['users'].find({"user_type": "Admin"})
 #     order = db["orders"].find_one({"receipt_data.0.PaymentId": str(payment_data['PaymentId'])})
