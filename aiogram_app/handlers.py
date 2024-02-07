@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardButton, InputFile, FSInputFile
 from aiogram.utils.keyboard import KeyboardBuilder
 from aiogram.utils.markdown import hbold
-from database import connect_to_postgres
+from database import session_factory
 import random
 import string
 from create_bot import (
@@ -42,9 +42,7 @@ def generate_unique_id():
 async def command_start_handler(message: Message, state: FSMContext) -> None:
     try:
         user_tid = message.from_user.id
-        engine, session_maker = await connect_to_postgres()
-
-        async with session_maker() as session:
+        async with session_factory() as session:
             user = session.query(User).filter_by(telegram_id=user_tid).first()
             if not user:
                 new_user = User(

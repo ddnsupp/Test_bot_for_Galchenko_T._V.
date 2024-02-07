@@ -16,7 +16,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.markdown import hbold
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from database import connect_to_postgres
+from database import session_factory
 from functools import wraps
 from zoneinfo import ZoneInfo
 from datetime import datetime
@@ -44,8 +44,7 @@ bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 
 
 async def add_message_to_delete(user_telegram_id, message_id):
-    engine, session_maker = await connect_to_postgres()
-    async with session_maker() as session:
+    async with session_factory() as session:
         try:
             user = session.query(User).filter_by(telegram_id=user_telegram_id).first()
             if user:
@@ -58,8 +57,6 @@ async def add_message_to_delete(user_telegram_id, message_id):
         except Exception as e:
             # Обработка ошибок
             log_message('error', f'Ошибка при выполнении SQL-запросов: {e}', user_telegram_id, traceback.extract_stack()[-1])
-        finally:
-            await engine.dispose()
 
 
 
