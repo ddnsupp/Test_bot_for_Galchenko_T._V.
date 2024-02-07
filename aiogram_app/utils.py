@@ -7,17 +7,15 @@ from create_bot import (
     add_message_to_delete,
     convert_epoch_to_moscow
 )
-from database import connect_to_postgres
+from database import session_factory
 from create_bot import log_message
 import traceback
 from models import User
 
-db = connect_to_postgres()
 
 
 async def delete_marked_messages(user_tid):
-    engine, session_maker = await connect_to_postgres()
-    async with session_maker() as session:
+    async with session_factory() as session:
         try:
             # Находим пользователя в базе данных по его телеграмм айди
             user = session.query(User).filter_by(t_id=user_tid).first()
@@ -39,13 +37,11 @@ async def delete_marked_messages(user_tid):
         except Exception as e:
             # Обработка ошибок
             log_message('error', f'Ошибка при выполнении SQL-запросов: {e}', user_tid, traceback.extract_stack()[-1])
-        finally:
-            await engine.dispose()
+
 
 
 async def display_main_keyboard(user_tid):
-    engine, session_maker = await connect_to_postgres()
-    async with session_maker() as session:
+    async with session_factory() as session:
         try:
             user = session.query(User).filter_by(telegram_id=user_tid).first()
 
@@ -80,5 +76,4 @@ async def display_main_keyboard(user_tid):
 
         except Exception as e:
             log_message('error', f'Ошибка при выполнении SQL-запросов: {e}', user_tid, traceback.extract_stack()[-1])
-        finally:
-            await engine.dispose()
+
