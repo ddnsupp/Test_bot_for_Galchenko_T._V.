@@ -1,11 +1,8 @@
 from aiogram import types
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import KeyboardBuilder
-
 from create_bot import (
     bot,
-    add_message_to_delete,
-    convert_epoch_to_moscow
 )
 from database import session_factory
 from create_bot import log_message
@@ -13,31 +10,31 @@ import traceback
 from models import User
 
 
-
 async def delete_marked_messages(user_tid):
     async with session_factory() as session:
         try:
-            # Находим пользователя в базе данных по его телеграмм айди
             user = session.query(User).filter_by(t_id=user_tid).first()
-
-            if user and user.messages_to_delete:  # Проверяем, что пользователь существует и имеет messages_to_delete
+            if user and user.messages_to_delete:
                 messages_to_delete = user.messages_to_delete
                 for message_id in messages_to_delete:
                     try:
                         # Удаляем сообщение по его идентификатору
                         await bot.delete_message(chat_id=user_tid, message_id=message_id)
                     except Exception as e:
-                        log_message('error', f'Ошибка при удалении сообщения: {e}', user_tid,
-                                    traceback.extract_stack()[-1])
-
-                # После удаления всех сообщений очищаем массив messages_to_delete у пользователя
+                        log_message('error',
+                                    f'Ошибка при удалении сообщения: {e}',
+                                    user_tid,
+                                    traceback.extract_stack()[-1]
+                                    )
                 user.messages_to_delete = []
                 session.commit()
 
         except Exception as e:
-            # Обработка ошибок
-            log_message('error', f'Ошибка при выполнении SQL-запросов: {e}', user_tid, traceback.extract_stack()[-1])
-
+            log_message('error',
+                        f'Ошибка при выполнении SQL-запросов: {e}',
+                        user_tid,
+                        traceback.extract_stack()[-1]
+                        )
 
 
 async def display_main_keyboard(user_tid):
@@ -68,12 +65,14 @@ async def display_main_keyboard(user_tid):
                     start_keyboard = {
                         'Посмотреть новые заказы': 'admin_check_available_orders|new',
                     }
-
                 for k, v in start_keyboard.items():
                     start_keyboard_builder.row(types.InlineKeyboardButton(text=k, callback_data=v))
 
                 return start_keyboard_builder
 
         except Exception as e:
-            log_message('error', f'Ошибка при выполнении SQL-запросов: {e}', user_tid, traceback.extract_stack()[-1])
-
+            log_message('error',
+                        f'Ошибка при выполнении SQL-запросов: {e}',
+                        user_tid,
+                        traceback.extract_stack()[-1]
+                        )

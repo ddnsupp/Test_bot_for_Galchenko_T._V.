@@ -4,7 +4,6 @@ from logging.handlers import RotatingFileHandler
 import traceback
 import os
 from pathlib import Path
-
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import KeyboardBuilder
 from dotenv import load_dotenv
@@ -16,12 +15,16 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.markdown import hbold
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from database import session_factory
 from functools import wraps
 from zoneinfo import ZoneInfo
 from datetime import datetime
 import asyncpg
 from models import User
+from database import session_factory
+from sqlalchemy import select, func, update
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.exc import SQLAlchemyError
+
 
 router = Router()
 
@@ -33,8 +36,14 @@ WEB_SERVER_HOST = getenv("TELEGRAM_WEB_SERVER_HOST")
 WEB_SERVER_PORT = int(getenv("TELEGRAM_WEB_SERVER_PORT"))
 WEBHOOK_PATH = getenv("TELEGRAM_WEBHOOK_PATH")
 BASE_WEBHOOK_URL = getenv("TELEGRAM_WEBHOOK_URL")
-TINKOFF_PAYMENT_URI = getenv("TINKOFF_PAYMENT_URI")
-# All handlers should be attached to the Router (or Dispatcher)
+BOTNAME = getenv('SERVICE_OFFICAIL_NAME')
+SUBSCRIPTION_GROUP_ID = getenv('SUBSCRIPTION_GROUP_ID')
+SUBSCRIPTION_GROUP_URL = getenv('SUBSCRIPTION_GROUP_URL')
+XLSX_FILENAME = str(getenv("XLSX_FILENAME"))
+LOG_FILENAME = str(getenv("LOG_FILENAME"))
+admins_str = os.getenv('ADMINS', '')
+ADMINS = [int(admin) for admin in admins_str.split(',') if admin.isdigit()]
+UKASSA_TOKEN = str(os.getenv('UKASSA_TOKEN'))
 
 
 storage = MemoryStorage()
@@ -42,21 +51,47 @@ dp = Dispatcher(storage=storage)
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 
 
-
 async def add_message_to_delete(user_telegram_id, message_id):
     async with session_factory() as session:
         try:
-            user = session.query(User).filter_by(telegram_id=user_telegram_id).first()
-            if user:
-                if not user.messages_to_delete:
-                    user.messages_to_delete = [message_id]
-                else:
-                    user.messages_to_delete.append(message_id)
-                session.commit()
+            stmt = update(User).where(User.t_id == user_telegram_id). \
+                values({User.messages_to_delete: func.array_append(User.messages_to_delete, message_id)}). \
+                returning(User.messages_to_delete)
+
+            result = await session.execute(stmt)
+            await session.commit()
 
         except Exception as e:
-            # Обработка ошибок
-            log_message('error', f'Ошибка при выполнении SQL-запросов: {e}', user_telegram_id, traceback.extract_stack()[-1])
+            log_message('error',
+                        f'Ошибка при выполнении SQL-запросов: {e}',
+                        user_telegram_id,
+                        traceback.extract_stack()[-1]
+                        )
+
+
+async def delete_previous_messages(user_telegram_id):
+    async with session_factory() as session:
+        try:
+            result = await session.execute(select(User).filter_by(t_id=user_telegram_id))
+            user = result.scalars().first()
+            if user and user.messages_to_delete:
+                for message_id in user.messages_to_delete:
+                    try:
+                        await bot.delete_message(chat_id=user_telegram_id, message_id=message_id)
+                    except Exception as e:
+                        ...
+
+                stmt = update(User).where(User.t_id == user_telegram_id).values(
+                    messages_to_delete=func.array_remove(User.messages_to_delete, message_id)
+                )
+                await session.execute(stmt)
+                await session.commit()
+        except SQLAlchemyError as e:
+            log_message('error',
+                        f"Ошибка при обновлении пользователя {user_telegram_id}: {e}",
+                        user_telegram_id,
+                        traceback.extract_stack()[-1]
+                        )
 
 
 
@@ -65,7 +100,7 @@ project_root_path = current_file_path.parent
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-log_filename = project_root_path / str(getenv("LOG_FILENAME"))
+log_filename = project_root_path / LOG_FILENAME
 log_max_size = 10 * 1024 * 1024  # DS: 10 МБ размер файла логов
 log_backup_count = 10  # DS: 10 файлов бекапа
 log_handler = RotatingFileHandler(log_filename, maxBytes=log_max_size, backupCount=log_backup_count)
@@ -100,9 +135,9 @@ def convert_epoch_to_moscow(epoch_time):
 def get_common_user_keyboard():
     keyboard_builder = KeyboardBuilder(button_type=InlineKeyboardButton)
     keyboard = {
-        'Каталог': 'catalogue',
-        'Корзина': 'cart',
-        'FAQ': 'about',
+        '🛍️ Каталог': 'choose_category',
+        '🛒 Корзина': 'check_cart',
+        '📌 FAQ': 'FAQ|',
     }
     for k, v in keyboard.items():
         keyboard_builder.row(types.InlineKeyboardButton(text=k, callback_data=v))

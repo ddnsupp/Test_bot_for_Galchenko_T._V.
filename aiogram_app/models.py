@@ -1,16 +1,18 @@
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey
-from sqlalchemy.dialects.postgresql import BIGINT, ARRAY
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, BigInteger
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
 Base = declarative_base()
 
 
 class User(Base):
     __tablename__ = 'user'
-    user_id = Column(Integer, primary_key=True, autoincrement=True)
-    t_id = Column(BIGINT, nullable=False)
-    username = Column(String(255), unique=True, nullable=False)
+    user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    t_id = Column(BigInteger, nullable=False)
+    username = Column(String(255))
     phone = Column(String(30))
     address = Column(String(255))
     user_type = Column(String(20), default='Customer')
@@ -18,11 +20,26 @@ class User(Base):
     carts = relationship('Cart', back_populates='user')
 
 
+class Subcategory(Base):
+    __tablename__ = 'subcategory'
+    subcategory_id = Column(Integer, primary_key=True, autoincrement=True)
+    subcategory_name = Column(String(100), nullable=False)
+    category_id = Column(Integer, ForeignKey('category.category_id'), nullable=False)
+    category = relationship('Category', back_populates='subcategories')
+
+
+class Category(Base):
+    __tablename__ = 'category'
+    category_id = Column(Integer, primary_key=True, autoincrement=True)
+    category_name = Column(String(100), nullable=False)
+    subcategories = relationship('Subcategory', back_populates='category')
+
+
 class Product(Base):
     __tablename__ = 'product'
     product_id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(String(100), nullable=False)
-    subcategory = Column(String(100), nullable=False)
+    category_id = Column(Integer, ForeignKey('category.category_id'), nullable=False)
+    subcategory_id = Column(Integer, ForeignKey('subcategory.subcategory_id'), nullable=False)
     product_name = Column(String(100), nullable=False)
     description = Column(Text)
     price = Column(Integer, nullable=False)
@@ -34,7 +51,7 @@ class Product(Base):
 class ProductPhoto(Base):
     __tablename__ = 'product_photo'
     product_photo_id = Column(Integer, primary_key=True, autoincrement=True)
-    url = Column(String(255))
+    file_id = Column(String(255))
     product_id = Column(Integer, ForeignKey('product.product_id'))
     product = relationship('Product', back_populates='photos')
 
@@ -42,7 +59,7 @@ class ProductPhoto(Base):
 class Cart(Base):
     __tablename__ = 'cart'
     cart_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('user.user_id'))
+    user_id = Column(UUID(as_uuid=True), ForeignKey('user.user_id'))  # Изменено на UUID
     user = relationship('User', back_populates='carts')
     cart_products = relationship('CartProduct', back_populates='cart')
 
